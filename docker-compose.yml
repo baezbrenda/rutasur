@@ -1,0 +1,81 @@
+services:
+  kafka:
+    image: apache/kafka:3.8.0
+    container_name: rutasur-kafka
+    ports: ["29092:29092"]
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:29092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,EXTERNAL://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 > /dev/null 2>&1"]
+      interval: 5s
+      timeout: 10s
+      retries: 20
+
+  kafka-init:
+    image: apache/kafka:3.8.0
+    depends_on:
+      kafka: { condition: service_healthy }
+    entrypoint: ["/bin/bash", "/create-topics.sh"]
+    volumes:
+      - ./infra/create-topics.sh:/create-topics.sh:ro
+
+  mongo:
+    image: mongo:7
+    container_name: rutasur-mongo
+    command: ["--replSet", "rs0", "--bind_ip_all"]
+    ports: ["27017:27017"]
+    volumes: [mongo-data:/data/db]
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "try { rs.status().ok } catch (e) { rs.initiate({_id:'rs0',members:[{_id:0,host:'mongo:27017'}]}).ok }"]
+      interval: 5s
+      timeout: 10s
+      retries: 20
+
+  simulator:
+    build: { context: ., args: { SERVICE: simulator } }
+    depends_on:
+      kafka-init: { condition: service_completed_successfully }
+    environment: &kafka-env
+      KAFKA_BROKERS: kafka:9092
+      MONGO_URI: mongodb://mongo:27017/?replicaSet=rs0
+      MONGO_DB: rutasur
+    ports: ["4001:4000"]
+    restart: unless-stopped
+
+  projector:
+    build: { context: ., args: { SERVICE: projector } }
+    depends_on:
+      kafka-init: { condition: service_completed_successfully }
+      mongo: { condition: service_healthy }
+    environment: *kafka-env
+    restart: unless-stopped
+
+  notificaciones:
+    build: { context: ., args: { SERVICE: notificaciones } }
+    depends_on:
+      kafka-init: { condition: service_completed_successfully }
+      mongo: { condition: service_healthy }
+    environment: *kafka-env
+    restart: unless-stopped
+
+  reprogramacion:
+    build: { context: ., args: { SERVICE: reprogramacion } }
+    depends_on:
+      kafka-init: { condition: service_completed_successfully }
+      mongo: { condition: service_healthy }
+    environment: *kafka-env
+    restart: unless-stopped
+
+volumes:
+  mongo-data:

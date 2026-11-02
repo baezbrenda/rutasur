@@ -1,0 +1,14 @@
+{
+  "name": "rutasur",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "workspaces": ["packages/*", "services/*"],
+  "scripts": {
+    "up": "docker compose up --build",
+    "down": "docker compose down",
+    "reset": "docker compose down -v",
+    "test": "node --test",
+    "lag": "docker compose exec kafka /opt/kafka/bin/kafka-consumer-groups.sh --bootstrap-server kafka:9092 --describe --all-groups"
+  }
+}
