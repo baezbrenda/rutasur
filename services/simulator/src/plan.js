@@ -8,8 +8,9 @@ const H = 3600_000;
  * opts.resultados: lista forzada por intento, p.ej. ['AUSENTE','OK'] (para los escenarios)
  * opts.demora:     fuerza (true/false) la demora en hub; undefined => se sortea
  * opts.detenerEn:  'INGRESADO_HUB' => el paquete queda detenido en el hub
+ * opts.promesaHoras: horas simuladas de la promesa de entrega (24 por defecto)
  */
-export function planificarEnvio(rng, cfg, { id, creadoSim, resultados, demora, detenerEn }) {
+export function planificarEnvio(rng, cfg, { id, creadoSim, resultados, demora, detenerEn, promesaHoras }) {
   const zona = pick(rng, cfg.zonas);
   const repartidorId = `REP-${String(1 + Math.floor(rng() * cfg.repartidores)).padStart(3, '0')}`;
   const hayDemora = demora ?? rng() < cfg.probDemoraHub;
@@ -24,7 +25,7 @@ export function planificarEnvio(rng, cfg, { id, creadoSim, resultados, demora, d
     topic: TOPICS.PROMESAS,
     value: {
       ...comun, eventId: `${id}-p`, tipo: 'PROMESA_DEFINIDA', secuencia: 0, repartidorId: null,
-      ocurridoEn: new Date(creadoSim).toISOString(), venceEn: new Date(creadoSim + 24 * H).toISOString(),
+      ocurridoEn: new Date(creadoSim).toISOString(), venceEn: new Date(creadoSim + (promesaHoras ?? 24) * H).toISOString(),
     },
   });
 

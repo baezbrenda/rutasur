@@ -58,13 +58,31 @@ export const ReprogramacionSchema = z
 export const NotificacionSchema = z.object({
   eventId: z.string().min(1),
   shipmentId: z.string().min(1),
-  tipo: z.literal('AVISO_ENTREGA_FALLIDA'),
+  tipo: z.enum(['AVISO_ENTREGA_FALLIDA', 'AVISO_RETRASO']),
   canal: z.literal('EMAIL_SIMULADO'),
-  motivo: z.enum(MOTIVOS),
+  motivo: z.enum(MOTIVOS).optional(),
+  regla: z.string().optional(),
   mensaje: z.string(),
   opciones: z.array(z.string()),
   ocurridoEn: z.string().datetime(),
   hubId: z.string().min(1),
   zonaId: z.string().min(1),
+  version: z.literal(1),
+});
+
+export const REGLAS_SLA = ['SIN_INGRESO', 'SIN_SALIDA', 'FALLO_DIA_LIMITE', 'VENCIDO'];
+
+// Evento de alertas.sla: apertura y cierre de una alerta de riesgo de SLA
+export const AlertaSchema = z.object({
+  eventId: z.string().min(1),
+  shipmentId: z.string().min(1),
+  tipo: z.enum(['ALERTA_ABIERTA', 'ALERTA_CERRADA']),
+  regla: z.enum(REGLAS_SLA),
+  prioridad: z.enum(['MEDIA', 'ALTA', 'CRITICA']),
+  causa: z.string(),
+  ocurridoEn: z.string().datetime(), // reloj SIMULADO
+  venceEn: z.string().datetime(),
+  hubId: z.string().nullable(),
+  zonaId: z.string().nullable(),
   version: z.literal(1),
 });

@@ -37,3 +37,15 @@ test('reprogramación: REPROGRAMADO guarda el próximo intento; RETENIDO lo limp
   const r = planificarReprogramacion({ ...base, tipo: 'RETENIDO', motivo: 'DIRECCION_INCORRECTA' });
   assert.deepEqual(r.$unset, { proximoIntento: '' });
 });
+
+import { planificarAlerta } from '../src/logic.js';
+
+test('alertas: apertura guarda prioridad y causa; cierre la marca CERRADA', () => {
+  const base = { shipmentId: 'RS-1', regla: 'SIN_SALIDA', prioridad: 'ALTA', causa: 'x', hubId: 'H', zonaId: 'Z', venceEn: '2026-03-03T00:00:00.000Z', ocurridoEn: '2026-03-02T20:00:00.000Z' };
+  const a = planificarAlerta({ ...base, tipo: 'ALERTA_ABIERTA' });
+  assert.equal(a.$set.estado, 'ABIERTA');
+  assert.equal(a.$set.prioridad, 'ALTA');
+  const c = planificarAlerta({ ...base, tipo: 'ALERTA_CERRADA' });
+  assert.equal(c.$set.estado, 'CERRADA');
+  assert.ok(c.$set.cerradaEn instanceof Date);
+});

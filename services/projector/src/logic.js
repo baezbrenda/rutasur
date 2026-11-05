@@ -51,3 +51,17 @@ export function planificarReprogramacion(ev) {
   }
   return update;
 }
+
+// Refleja una alerta de SLA (apertura o cierre) en la colección `alertas`. Clave: (shipmentId, regla).
+export function planificarAlerta(ev) {
+  if (ev.tipo === 'ALERTA_ABIERTA') {
+    return {
+      $set: {
+        estado: 'ABIERTA', prioridad: ev.prioridad, causa: ev.causa, hubId: ev.hubId, zonaId: ev.zonaId,
+        venceEn: new Date(ev.venceEn), abiertaEn: new Date(ev.ocurridoEn),
+      },
+      $unset: { cerradaEn: '' },
+    };
+  }
+  return { $set: { estado: 'CERRADA', cerradaEn: new Date(ev.ocurridoEn) } };
+}

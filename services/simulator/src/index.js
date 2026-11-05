@@ -85,6 +85,8 @@ const escenarios = {
   'tercer-fallo': () => [crearEnvio({ resultados: ['AUSENTE', 'AUSENTE', 'AUSENTE'], demora: false })],
   direccion: () => [crearEnvio({ resultados: ['DIRECCION_INCORRECTA'], demora: false })],
   rechazado: () => [crearEnvio({ resultados: ['RECHAZADO'], demora: false })],
+  // Promesa a 7,5 h: el fallo (a las 7 h) ocurre el día límite y dispara las 4 reglas de SLA.
+  'fallo-dia-limite': () => [crearEnvio({ resultados: ['DIRECCION_INCORRECTA'], demora: false, promesaHoras: 7.5 })],
   rafaga: () => Array.from({ length: 500 }, () => crearEnvio()),
 };
 

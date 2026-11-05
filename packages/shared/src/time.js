@@ -14,3 +14,9 @@ export function proximoDiaHabil(iso, franja) {
   const hora = franja === 'MANANA' ? 9 : 15;
   return new Date(dia + hora * 3600_000 - OFFSET_MS).toISOString();
 }
+
+// Día calendario local (YYYY-MM-DD) de un instante (ms o ISO).
+export function diaLocal(x) {
+  const ms = typeof x === 'number' ? x : Date.parse(x);
+  return new Date(ms + OFFSET_MS).toISOString().slice(0, 10);
+}

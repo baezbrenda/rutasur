@@ -27,3 +27,27 @@ export function armarAviso(ev) {
     version: 1,
   };
 }
+
+const MENSAJE_ALERTA = {
+  SIN_INGRESO: 'Tu envío todavía no ingresó al centro de distribución y podría demorarse.',
+  SIN_SALIDA: 'Tu envío aún no salió a reparto y podría llegar con demora.',
+  FALLO_DIA_LIMITE: 'La entrega falló y la fecha prometida vence hoy.',
+  VENCIDO: 'Tu envío superó la fecha de entrega prometida. Estamos trabajando para resolverlo.',
+};
+
+// Aviso de retraso a partir de una ALERTA_ABIERTA de alertas.sla (tipo distinto al del fallo de entrega).
+export function armarAvisoAlerta(ev) {
+  return {
+    eventId: `${ev.eventId}-notif`,
+    shipmentId: ev.shipmentId,
+    tipo: 'AVISO_RETRASO',
+    canal: 'EMAIL_SIMULADO',
+    regla: ev.regla,
+    mensaje: MENSAJE_ALERTA[ev.regla],
+    opciones: [],
+    ocurridoEn: ev.ocurridoEn,
+    hubId: ev.hubId ?? 'SIN_HUB',
+    zonaId: ev.zonaId ?? 'SIN_ZONA',
+    version: 1,
+  };
+}

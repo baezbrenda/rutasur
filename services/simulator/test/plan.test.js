@@ -38,3 +38,8 @@ test('demorado queda detenido en el hub', () => {
   const t = plan(1, { detenerEn: 'INGRESADO_HUB' }).eventos.filter((e) => e.topic === TOPICS.ESTADOS).map((e) => e.value.tipo);
   assert.deepEqual(t, ['CREADO', 'INGRESADO_HUB']);
 });
+
+test('promesaHoras ajusta el vencimiento de la promesa', () => {
+  const p = plan(1, { promesaHoras: 7.5 }).eventos.find((e) => e.topic === TOPICS.PROMESAS).value;
+  assert.equal(Date.parse(p.venceEn) - Date.parse(p.ocurridoEn), 7.5 * 3600_000);
+});

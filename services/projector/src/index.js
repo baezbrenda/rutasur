@@ -1,5 +1,5 @@
-import { createKafka, createProducer, runConsumer, connectMongo, ensureIndexes, TOPICS, EstadoSchema, PromesaSchema, ReprogramacionSchema, NotificacionSchema, log } from '@rutasur/shared';
-import { planificarEstado, planificarReprogramacion } from './logic.js';
+import { createKafka, createProducer, runConsumer, connectMongo, ensureIndexes, TOPICS, EstadoSchema, PromesaSchema, ReprogramacionSchema, NotificacionSchema, AlertaSchema, log } from '@rutasur/shared';
+import { planificarEstado, planificarReprogramacion, planificarAlerta } from './logic.js';
 
 const SERVICE = 'proyector';
 const { client, db } = await connectMongo();
@@ -7,6 +7,7 @@ await ensureIndexes(db);
 
 const envios = db.collection('envios');
 const notificaciones = db.collection('notificaciones');
+const alertas = db.collection('alertas');
 const procesados = db.collection('eventos_procesados');
 
 // Idempotencia + escritura en una sola transacción (MongoDB corre como replica set):
@@ -29,6 +30,9 @@ async function aplicar(ev, topic, session) {
     }
     case TOPICS.REPROGRAMACIONES:
       await envios.updateOne({ shipmentId: ev.shipmentId }, planificarReprogramacion(ev), { upsert: true, session });
+      break;
+    case TOPICS.ALERTAS:
+      await alertas.updateOne({ shipmentId: ev.shipmentId, regla: ev.regla }, planificarAlerta(ev), { upsert: ev.tipo === 'ALERTA_ABIERTA', session });
       break;
     case TOPICS.NOTIFICACIONES: {
       const { ocurridoEn, ...resto } = ev;
@@ -55,15 +59,16 @@ const kafka = createKafka(SERVICE);
 const dlqProducer = createProducer(kafka);
 await dlqProducer.connect();
 
-// FASE 2: estados, promesas, reprogramaciones y notificaciones. La fase 3 suma alertas.sla.
+// Consume los 5 topics que alimentan las vistas de lectura.
 const { stop } = await runConsumer({
   kafka, service: SERVICE, groupId: 'proyector', dlqProducer, handler,
-  topics: [TOPICS.ESTADOS, TOPICS.PROMESAS, TOPICS.REPROGRAMACIONES, TOPICS.NOTIFICACIONES],
+  topics: [TOPICS.ESTADOS, TOPICS.PROMESAS, TOPICS.REPROGRAMACIONES, TOPICS.NOTIFICACIONES, TOPICS.ALERTAS],
   schemas: {
     [TOPICS.ESTADOS]: EstadoSchema,
     [TOPICS.PROMESAS]: PromesaSchema,
     [TOPICS.REPROGRAMACIONES]: ReprogramacionSchema,
     [TOPICS.NOTIFICACIONES]: NotificacionSchema,
+    [TOPICS.ALERTAS]: AlertaSchema,
   },
 });
 log(SERVICE, { listo: true });

@@ -20,14 +20,15 @@ services/simulator/    genera eventos + API de escenarios (puerto 4000)
 services/projector/    CU1: mantiene `envios`, `notificaciones` (y más adelante `alertas`)
 services/notificaciones/  CU2: registra el aviso al destinatario ante ENTREGA_FALLIDA
 services/reprogramacion/  CU2: decide el próximo intento según el motivo
-(próximas fases: monitor-sla, analitica, web)
+services/monitor-sla/     CU3: evalúa las 4 reglas de SLA con el reloj simulado y emite alertas
+(próximas fases: analitica, web)
 ```
 
 ## Estado
 
 - [x] Fase 1: infraestructura, shared, simulador, proyector (CU1)
 - [x] Fase 2: notificaciones + reprogramación (CU2)
-- [ ] Fase 3: monitor de SLA (CU3)
+- [x] Fase 3: monitor de SLA (CU3)
 - [ ] Fase 4: analítica + reprocesamiento (CU4)
 - [ ] Fase 5: Next.js (torre de control, tracking, analítica, demo)
 
@@ -35,7 +36,7 @@ services/reprogramacion/  CU2: decide el próximo intento según el motivo
 
 ```bash
 curl -X POST localhost:4001/escenarios/feliz        # devuelve el shipmentId
-curl -X POST localhost:4001/escenarios/ausente        # también: direccion, rechazado, tercer-fallo, demorado
+curl -X POST localhost:4001/escenarios/ausente        # también: direccion, rechazado, tercer-fallo, demorado, fallo-dia-limite
 curl -X POST localhost:4001/escenarios/rafaga
 curl localhost:4001/config                          # reloj simulado y pendientes
 
@@ -82,4 +83,44 @@ Ver el resultado de un envío:
 ```bash
 docker compose exec mongo mongosh rutasur --quiet --eval 'printjson(db.envios.findOne({shipmentId:"RS-000001"},{_id:0,estado:1,disposicion:1,proximoIntento:1,reprogramaciones:1}))'
 docker compose exec mongo mongosh rutasur --quiet --eval 'printjson(db.notificaciones.find({shipmentId:"RS-000001"}).toArray())'
+```
+
+## Corridas limpias
+
+El log de Kafka es la fuente de verdad y MongoDB solo guarda vistas derivadas. Como el simulador usa
+semilla fija, cada arranque repite los mismos `eventId`; si MongoDB conserva datos de una corrida
+anterior, el proyector los descarta como duplicados. Para empezar de cero **siempre**:
+
+```bash
+docker compose down -v && docker compose up --build
+```
+
+## CU3: riesgo de SLA (fase 3)
+
+El monitor (`monitor-sla`) cruza `envios.estados` con `envios.promesas` y emite a `alertas.sla`.
+
+| Regla | Condición | Prioridad |
+|---|---|---|
+| SIN_INGRESO | faltan < 10 h y no ingresó al hub | Media |
+| SIN_SALIDA | faltan < 4 h y no está en reparto | Alta |
+| FALLO_DIA_LIMITE | ENTREGA_FALLIDA y la promesa vence hoy | Alta |
+| VENCIDO | pasó el vencimiento sin ENTREGADO | Crítica |
+
+- **Reloj simulado:** el monitor usa el mayor `ocurridoEn` visto (no el reloj de la máquina). Si el
+  simulador se detiene, el tiempo del monitor también.
+- **Evaluación:** al recibir cada evento y, además, con un barrido periódico de todos los envíos abiertos
+  (`BARRIDO_MS`, 5 s reales por defecto ≈ 10 min simulados; la spec dice "cada minuto").
+- **Sin repetición:** cada regla se alerta una sola vez por envío (`alertas` en su estado interno).
+- **Cierre:** al llegar ENTREGADO emite `ALERTA_CERRADA` por cada alerta abierta.
+- **Reinicios:** el estado por envío y el reloj se respaldan en `monitor_sla_estado` / `monitor_sla_meta`.
+  Las alertas tienen `eventId` determinístico (`<envío>-<regla>`): si se reemite tras un reinicio, el proyector la descarta.
+- El proyector las escribe en `alertas` (clave `shipmentId + regla`) y `notificaciones` suma un
+  `AVISO_RETRASO` (tipo distinto del aviso por fallo) por cada alerta abierta.
+
+Probar las reglas:
+
+```bash
+curl -X POST localhost:4001/escenarios/demorado           # SIN_SALIDA (alta) ~10 min, luego VENCIDO
+curl -X POST localhost:4001/escenarios/fallo-dia-limite   # dispara las 4 reglas en ~4 min
+docker compose exec mongo mongosh rutasur --quiet --eval 'printjson(db.alertas.find({shipmentId:"RS-XXXXXX"},{_id:0,regla:1,prioridad:1,estado:1}).toArray())'
 ```
