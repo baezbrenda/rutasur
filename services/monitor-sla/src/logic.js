@@ -2,7 +2,6 @@ import { diaLocal } from '@rutasur/shared';
 
 const H = 3600_000;
 
-/** Estado interno por envío: último estado (por secuencia), vencimiento y alertas ya emitidas. */
 export function nuevoEstado(shipmentId) {
   return { shipmentId, estado: null, ultimaSecuencia: -1, venceEn: null, hubId: null, zonaId: null, alertas: {}, cerrado: false };
 }
@@ -20,10 +19,6 @@ export function aplicarPromesa(st, ev) {
   return { ...st, venceEn: ev.venceEn, hubId: st.hubId ?? ev.hubId, zonaId: st.zonaId ?? ev.zonaId };
 }
 
-/**
- * Las 4 reglas de la spec, evaluadas contra el reloj SIMULADO `ahora` (ms).
- * Devuelve solo las reglas que aplican y que todavía no se alertaron para este envío ("sin repetición").
- */
 export function reglasQueAplican(st, ahora) {
   if (st.cerrado || !st.venceEn) return [];
   const vence = Date.parse(st.venceEn);
@@ -45,7 +40,6 @@ export function reglasQueAplican(st, ahora) {
   return out.filter((r) => !st.alertas[r.regla]);
 }
 
-// eventId determinístico: si el monitor se reinicia y reemite, el proyector descarta el duplicado.
 export function armarAlerta(st, { regla, prioridad, causa }, tipo, ahora) {
   return {
     eventId: tipo === 'ALERTA_ABIERTA' ? `${st.shipmentId}-${regla}` : `${st.shipmentId}-${regla}-cierre`,

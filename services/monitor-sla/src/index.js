@@ -9,7 +9,6 @@ await ensureIndexes(db);
 const colEstado = db.collection('monitor_sla_estado');
 const colMeta = db.collection('monitor_sla_meta');
 
-// ---- Estado en memoria con respaldo en MongoDB (tolera reinicios) ----
 const estados = new Map();
 for await (const { _id, ...st } of colEstado.find()) estados.set(st.shipmentId, st);
 let reloj = (await colMeta.findOne({ _id: 'reloj' }))?.simNow ?? 0; // reloj SIMULADO = mayor ocurridoEn visto
@@ -24,15 +23,14 @@ await producer.connect();
 const publicar = (alerta) =>
   producer.send({ topic: TOPICS.ALERTAS, messages: [{ key: alerta.shipmentId, value: JSON.stringify(alerta) }] });
 
-// Evento y barrido comparten estado: se serializan para no emitir una alerta dos veces.
 let cadena = Promise.resolve();
 const exclusivo = (fn) => { const p = cadena.then(fn); cadena = p.catch(() => {}); return p; };
 
 async function evaluar(st) {
   for (const r of reglasQueAplican(st, reloj)) {
-    await publicar(armarAlerta(st, r, 'ALERTA_ABIERTA', reloj)); // 1) publicar (eventId determinístico)
+    await publicar(armarAlerta(st, r, 'ALERTA_ABIERTA', reloj)); 
     st.alertas[r.regla] = 'ABIERTA';
-    await persistir(st);                                          // 2) recordar que ya se alertó
+    await persistir(st);                                          
     log(SERVICE, { alerta: r.regla, prioridad: r.prioridad, shipmentId: st.shipmentId, reloj: new Date(reloj).toISOString() });
   }
 }
@@ -63,10 +61,9 @@ function handler({ evento, topic }) {
   });
 }
 
-// Barrido periódico: las alertas nacen de la AUSENCIA de eventos, no de un evento.
 let ultimoBarrido = 0;
 setInterval(() => {
-  if (reloj === ultimoBarrido) return; // el reloj simulado no avanzó
+  if (reloj === ultimoBarrido) return; 
   exclusivo(async () => {
     for (const st of estados.values()) {
       if (st.cerrado || st.alertas.VENCIDO) continue;
